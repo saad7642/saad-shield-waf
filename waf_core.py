@@ -3,6 +3,7 @@ import re
 import urllib.parse
 import smtplib
 import threading
+import ssl  # New import for SSL Context
 from email.mime.text import MIMEText
 from flask import Flask, request, abort, render_template_string
 
@@ -53,14 +54,14 @@ UI_HTML = """
 </html>
 """
 
-# --- BACKGROUND EMAIL TASK (WITH SSL & DEBUGGING) ---
+# --- BACKGROUND EMAIL TASK ---
 def send_mail_task(ip, reason, payload):
     print(f"[DEBUG] Email task started for IP: {ip}")
     u = GMAIL_USER
     p = GMAIL_PASS
     
     if not u or not p:
-        print(f"[-] ERROR: Missing Env Vars. USER: {u}, PASS: {'SET' if p else 'NOT SET'}")
+        print(f"[-] ERROR: Missing Env Vars.")
         return
 
     try:
@@ -69,11 +70,16 @@ def send_mail_task(ip, reason, payload):
         msg['From'] = u
         msg['To'] = u 
         
-        print(f"[DEBUG] Attempting SSL connection to smtp.gmail.com:465")
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=15) as server:
+        # FIX: SSL Context prevents hanging on handshake
+        context = ssl.create_default_context()
+        
+        print(f"[DEBUG] Connecting to SSL Port 465...")
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context, timeout=15) as server:
+            print(f"[DEBUG] Connection Established. Logging in...")
             server.login(u, p)
-            print(f"[DEBUG] Gmail Login Successful!")
+            print(f"[DEBUG] Login Successful!")
             server.send_message(msg)
+            
         print(f"[+] SUCCESS: Alert Email Sent to {u}")
     except Exception as e:
         print(f"[-] SMTP FATAL ERROR: {str(e)}")
@@ -93,7 +99,6 @@ def smart_waf():
         for pattern in SECURITY_RULES:
             if re.search(pattern, content):
                 print(f"[!] THREAT DETECTED: {pattern}")
-                # Threading ensures the block (403) is instant
                 threading.Thread(target=send_mail_task, args=(client_ip, "Policy Violation", content[:150])).start()
                 return abort(403)
     return None
@@ -103,5 +108,6 @@ def home():
     return render_template_string(UI_HTML)
 
 if __name__ == '__main__':
+    # Using Port 10000 for Render
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
