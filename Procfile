@@ -1,0 +1,1 @@
+web: gunicorn waf_core:app
