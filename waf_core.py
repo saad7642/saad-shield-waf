@@ -4,6 +4,7 @@ import urllib.parse
 import smtplib
 import threading
 import ssl
+import requests
 from email.mime.text import MIMEText
 from flask import Flask, request, abort, render_template_string
 
@@ -57,40 +58,37 @@ UI_HTML = """
 # --- BACKGROUND EMAIL TASK ---
 def send_mail_task(ip, reason, payload):
     print(f"[DEBUG] Email task started for IP: {ip}")
-    u = GMAIL_USER
-    p = GMAIL_PASS
     
-    # ENV VARS CHECK
-    print(f"[DEBUG] GMAIL_USER set: {bool(u)}, GMAIL_PASS set: {bool(p)}")
+    api_key = os.environ.get("RESEND_API_KEY")
+    to_email = os.environ.get("GMAIL_USER")
     
-    if not u or not p:
-        print(f"[-] ERROR: Missing Env Vars - GMAIL_USER aur GMAIL_PASS Render Environment mein set karo")
+    if not api_key or not to_email:
+        print(f"[-] ERROR: RESEND_API_KEY ya GMAIL_USER missing hai")
         return
 
     try:
-        msg = MIMEText(f"Saad Bhai, Attack Blocked!\n\nIP: {ip}\nType: {reason}\nPayload: {payload}")
-        msg['Subject'] = f'WAF ALERT: {reason}'
-        msg['From'] = u
-        msg['To'] = u 
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "from": "WAF Alert <onboarding@resend.dev>",
+                "to": to_email,
+                "subject": f"WAF ALERT: {reason}",
+                "text": f"Saad Bhai, Attack Blocked!\n\nIP: {ip}\nType: {reason}\nPayload: {payload}"
+            },
+            timeout=10
+        )
         
-        context = ssl.create_default_context()
-        print(f"[DEBUG] Connecting to SSL Port 465...")
-        
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context, timeout=10) as server:
-            print(f"[DEBUG] Connected! Logging in...")
-            server.login(u, p)
-            print(f"[DEBUG] Login OK! Sending email...")
-            server.send_message(msg)
-            print(f"[+] SUCCESS: Email Sent to {u}")
+        if response.status_code == 200:
+            print(f"[+] SUCCESS: Email sent!")
+        else:
+            print(f"[-] FAILED: {response.status_code} - {response.text}")
             
-    except smtplib.SMTPAuthenticationError:
-        print(f"[-] AUTH ERROR: Gmail App Password galat hai - Google Account mein App Password banao")
-    except smtplib.SMTPConnectError:
-        print(f"[-] CONNECT ERROR: Port 465 block hai - Render free plan SMTP allow nahi karta")
-    except TimeoutError:
-        print(f"[-] TIMEOUT ERROR: Render ne port 465 block kar diya")
     except Exception as e:
-        print(f"[-] FATAL ERROR: {type(e).__name__}: {str(e)}")
+        print(f"[-] ERROR: {type(e).__name__}: {str(e)}")
 
 @app.before_request
 def smart_waf():
