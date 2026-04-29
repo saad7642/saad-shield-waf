@@ -3,7 +3,7 @@ import re
 import urllib.parse
 import smtplib
 import threading
-import ssl  # New import for SSL Context
+import ssl
 from email.mime.text import MIMEText
 from flask import Flask, request, abort, render_template_string
 
@@ -22,7 +22,7 @@ SECURITY_RULES = [
     r"\bwhoami\b", r"\{\s*\"\$[a-z]+\""                                             
 ]
 
-# --- UI TEMPLATE (Muhammad Saad Professional Dashboard) ---
+# --- UI TEMPLATE ---
 UI_HTML = """
 <!DOCTYPE html>
 <html lang="en">
@@ -60,29 +60,37 @@ def send_mail_task(ip, reason, payload):
     u = GMAIL_USER
     p = GMAIL_PASS
     
+    # ENV VARS CHECK
+    print(f"[DEBUG] GMAIL_USER set: {bool(u)}, GMAIL_PASS set: {bool(p)}")
+    
     if not u or not p:
-        print(f"[-] ERROR: Missing Env Vars.")
+        print(f"[-] ERROR: Missing Env Vars - GMAIL_USER aur GMAIL_PASS Render Environment mein set karo")
         return
 
     try:
         msg = MIMEText(f"Saad Bhai, Attack Blocked!\n\nIP: {ip}\nType: {reason}\nPayload: {payload}")
-        msg['Subject'] = f'🛡️ WAF ALERT: {reason}'
+        msg['Subject'] = f'WAF ALERT: {reason}'
         msg['From'] = u
         msg['To'] = u 
         
-        # FIX: SSL Context prevents hanging on handshake
         context = ssl.create_default_context()
-        
         print(f"[DEBUG] Connecting to SSL Port 465...")
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context, timeout=15) as server:
-            print(f"[DEBUG] Connection Established. Logging in...")
+        
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context, timeout=10) as server:
+            print(f"[DEBUG] Connected! Logging in...")
             server.login(u, p)
-            print(f"[DEBUG] Login Successful!")
+            print(f"[DEBUG] Login OK! Sending email...")
             server.send_message(msg)
+            print(f"[+] SUCCESS: Email Sent to {u}")
             
-        print(f"[+] SUCCESS: Alert Email Sent to {u}")
+    except smtplib.SMTPAuthenticationError:
+        print(f"[-] AUTH ERROR: Gmail App Password galat hai - Google Account mein App Password banao")
+    except smtplib.SMTPConnectError:
+        print(f"[-] CONNECT ERROR: Port 465 block hai - Render free plan SMTP allow nahi karta")
+    except TimeoutError:
+        print(f"[-] TIMEOUT ERROR: Render ne port 465 block kar diya")
     except Exception as e:
-        print(f"[-] SMTP FATAL ERROR: {str(e)}")
+        print(f"[-] FATAL ERROR: {type(e).__name__}: {str(e)}")
 
 @app.before_request
 def smart_waf():
@@ -108,6 +116,5 @@ def home():
     return render_template_string(UI_HTML)
 
 if __name__ == '__main__':
-    # Using Port 10000 for Render
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
