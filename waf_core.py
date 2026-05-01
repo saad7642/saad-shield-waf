@@ -1,26 +1,32 @@
 import os
 import re
 import urllib.parse
-import smtplib
 import threading
-import ssl
 import requests
-from email.mime.text import MIMEText
 from flask import Flask, request, abort, render_template_string
 
 app = Flask(__name__)
 
 # --- SECURE CREDENTIALS ---
-GMAIL_USER = os.environ.get("GMAIL_USER") 
-GMAIL_PASS = os.environ.get("GMAIL_PASS") 
+GMAIL_USER = os.environ.get("GMAIL_USER")
 
-# --- SECURITY RULES ---
+# --- SECURITY RULES (Updated with XSS bypass fixes) ---
 SECURITY_RULES = [
-    r"<script.*?>", r"alert\(", r"onerror=", r"onload=",             
-    r"union\s+select", r"insert\s+into", r"drop\s+table",             
-    r"'.*?or.*?1\s*=\s*1", r"'.*?--", r"\d+\s*=\s*\d+",               
-    r"\.\./\.\./", r"/etc/passwd", r";\s*cat\s+", r";\s*whoami",            
-    r"\bwhoami\b", r"\{\s*\"\$[a-z]+\""                                             
+    # Original Rules
+    r"<script.*?>", r"alert\(", r"onerror=", r"onload=",
+    r"union\s+select", r"insert\s+into", r"drop\s+table",
+    r"'.*?or.*?1\s*=\s*1", r"'.*?--", r"\d+\s*=\s*\d+",
+    r"\.\./\.\./", r"/etc/passwd", r";\s*cat\s+", r";\s*whoami",
+    r"\bwhoami\b", r"\{\s*\"\$[a-z]+\"",
+
+    # NEW — XSS Bypass Fixes (Pen Test Finding #1)
+    r"javascript\s*:",
+    r"j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t",
+    r"&#[\dx]+;",
+    r"%26%23",
+    r"<\s*img[^>]+src\s*=",
+    r"&#\d+",
+    r"&\s*#",
 ]
 
 # --- UI TEMPLATE ---
@@ -55,13 +61,23 @@ UI_HTML = """
 </html>
 """
 
+# --- SECURITY HEADERS FIX (Finding #2) ---
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    return response
+
 # --- BACKGROUND EMAIL TASK ---
 def send_mail_task(ip, reason, payload):
     print(f"[DEBUG] Email task started for IP: {ip}")
-    
+
     api_key = os.environ.get("RESEND_API_KEY")
     to_email = os.environ.get("GMAIL_USER")
-    
+
     if not api_key or not to_email:
         print(f"[-] ERROR: RESEND_API_KEY ya GMAIL_USER missing hai")
         return
@@ -81,20 +97,23 @@ def send_mail_task(ip, reason, payload):
             },
             timeout=10
         )
-        
+
         if response.status_code == 200:
             print(f"[+] SUCCESS: Email sent!")
         else:
             print(f"[-] FAILED: {response.status_code} - {response.text}")
-            
+
     except Exception as e:
         print(f"[-] ERROR: {type(e).__name__}: {str(e)}")
 
+# --- WAF MIDDLEWARE ---
 @app.before_request
 def smart_waf():
-    if request.path == '/favicon.ico': return None
+    if request.path == '/favicon.ico':
+        return None
+
     client_ip = request.remote_addr
-    
+
     to_scan = [
         urllib.parse.unquote(request.url).lower(),
         urllib.parse.unquote(request.get_data(as_text=True)).lower(),
@@ -105,7 +124,10 @@ def smart_waf():
         for pattern in SECURITY_RULES:
             if re.search(pattern, content):
                 print(f"[!] THREAT DETECTED: {pattern}")
-                threading.Thread(target=send_mail_task, args=(client_ip, "Policy Violation", content[:150])).start()
+                threading.Thread(
+                    target=send_mail_task,
+                    args=(client_ip, "Policy Violation", content[:150])
+                ).start()
                 return abort(403)
     return None
 
