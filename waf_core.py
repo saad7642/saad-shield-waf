@@ -3,15 +3,47 @@ import re
 import urllib.parse
 import threading
 import requests
-import sqlite3
 import bcrypt
 import time
 from collections import defaultdict
 from datetime import datetime
 from flask import Flask, request, abort, render_template_string, redirect, session, jsonify
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "saad-shield-secret-2026")
+
+# --- DATABASE CONNECTION ---
+def get_db():
+    return psycopg2.connect(os.environ.get("DATABASE_URL"), sslmode='require')
+
+# --- DATABASE SETUP ---
+def init_db():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS attacks (
+        id SERIAL PRIMARY KEY,
+        timestamp TEXT,
+        ip TEXT,
+        attack_type TEXT,
+        payload TEXT
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS admin (
+        id INTEGER PRIMARY KEY,
+        password_hash TEXT
+    )''')
+    c.execute("SELECT * FROM admin WHERE id=1")
+    existing = c.fetchone()
+    if not existing:
+        default_pass = os.environ.get("DASHBOARD_PASSWORD", "saadshield123")
+        hashed = bcrypt.hashpw(default_pass.encode(), bcrypt.gensalt()).decode()
+        c.execute("INSERT INTO admin (id, password_hash) VALUES (1, %s)", (hashed,))
+    conn.commit()
+    c.close()
+    conn.close()
+
+init_db()
 
 # --- RATE LIMITING ---
 login_attempts = defaultdict(list)
@@ -24,35 +56,12 @@ def is_rate_limited(ip):
     login_attempts[ip].append(now)
     return False
 
-# --- DATABASE SETUP ---
-def init_db():
-    conn = sqlite3.connect('waf_logs.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS attacks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp TEXT,
-        ip TEXT,
-        attack_type TEXT,
-        payload TEXT
-    )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS admin (
-        id INTEGER PRIMARY KEY,
-        password_hash TEXT
-    )''')
-    existing = c.execute("SELECT * FROM admin").fetchone()
-    if not existing:
-        default_pass = os.environ.get("DASHBOARD_PASSWORD", "saadshield123")
-        hashed = bcrypt.hashpw(default_pass.encode(), bcrypt.gensalt()).decode()
-        c.execute("INSERT INTO admin (id, password_hash) VALUES (1, ?)", (hashed,))
-    conn.commit()
-    conn.close()
-
-init_db()
-
 def verify_password(password):
-    conn = sqlite3.connect('waf_logs.db')
+    conn = get_db()
     c = conn.cursor()
-    row = c.execute("SELECT password_hash FROM admin WHERE id=1").fetchone()
+    c.execute("SELECT password_hash FROM admin WHERE id=1")
+    row = c.fetchone()
+    c.close()
     conn.close()
     if row:
         return bcrypt.checkpw(password.encode(), row[0].encode())
@@ -60,27 +69,34 @@ def verify_password(password):
 
 def change_password(new_password):
     hashed = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
-    conn = sqlite3.connect('waf_logs.db')
+    conn = get_db()
     c = conn.cursor()
-    c.execute("UPDATE admin SET password_hash=? WHERE id=1", (hashed,))
+    c.execute("UPDATE admin SET password_hash=%s WHERE id=1", (hashed,))
     conn.commit()
+    c.close()
     conn.close()
 
 def log_attack(ip, attack_type, payload):
-    conn = sqlite3.connect('waf_logs.db')
+    conn = get_db()
     c = conn.cursor()
-    c.execute("INSERT INTO attacks (timestamp, ip, attack_type, payload) VALUES (?, ?, ?, ?)",
+    c.execute("INSERT INTO attacks (timestamp, ip, attack_type, payload) VALUES (%s, %s, %s, %s)",
               (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), ip, attack_type, payload[:200]))
     conn.commit()
+    c.close()
     conn.close()
 
 def get_stats():
-    conn = sqlite3.connect('waf_logs.db')
+    conn = get_db()
     c = conn.cursor()
-    total = c.execute("SELECT COUNT(*) FROM attacks").fetchone()[0]
-    recent = c.execute("SELECT timestamp, ip, attack_type, payload FROM attacks ORDER BY id DESC LIMIT 50").fetchall()
-    by_type = c.execute("SELECT attack_type, COUNT(*) FROM attacks GROUP BY attack_type ORDER BY COUNT(*) DESC").fetchall()
-    by_ip = c.execute("SELECT ip, COUNT(*) FROM attacks GROUP BY ip ORDER BY COUNT(*) DESC LIMIT 10").fetchall()
+    c.execute("SELECT COUNT(*) FROM attacks")
+    total = c.fetchone()[0]
+    c.execute("SELECT timestamp, ip, attack_type, payload FROM attacks ORDER BY id DESC LIMIT 50")
+    recent = c.fetchall()
+    c.execute("SELECT attack_type, COUNT(*) FROM attacks GROUP BY attack_type ORDER BY COUNT(*) DESC")
+    by_type = c.fetchall()
+    c.execute("SELECT ip, COUNT(*) FROM attacks GROUP BY ip ORDER BY COUNT(*) DESC LIMIT 10")
+    by_ip = c.fetchall()
+    c.close()
     conn.close()
     return total, recent, by_type, by_ip
 
