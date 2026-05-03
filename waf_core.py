@@ -34,6 +34,9 @@ def init_db():
     conn.commit()
     conn.close()
 
+# DB initialize karo app start hote hi
+init_db()
+
 def verify_password(password):
     conn = sqlite3.connect('waf_logs.db')
     c = conn.cursor()
@@ -188,13 +191,8 @@ LOGIN_HTML = """
     <script>
         function toggleEye(inputId, icon) {
             const input = document.getElementById(inputId);
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.innerText = '🙈';
-            } else {
-                input.type = 'password';
-                icon.innerText = '👁️';
-            }
+            if (input.type === 'password') { input.type = 'text'; icon.innerText = '🙈'; }
+            else { input.type = 'password'; icon.innerText = '👁️'; }
         }
         function login() {
             const btn = document.querySelector('.login-btn');
@@ -205,14 +203,8 @@ LOGIN_HTML = """
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({password: document.getElementById('pwd').value})
             }).then(r => r.json()).then(d => {
-                if(d.success) {
-                    btn.innerText = '✅ Success! Redirecting...';
-                    window.location.href = '/dashboard';
-                } else {
-                    document.getElementById('err').style.display = 'block';
-                    btn.innerText = '🔓 Login to Dashboard';
-                    btn.disabled = false;
-                }
+                if(d.success) { btn.innerText = '✅ Success! Redirecting...'; window.location.href = '/dashboard'; }
+                else { document.getElementById('err').style.display = 'block'; btn.innerText = '🔓 Login to Dashboard'; btn.disabled = false; }
             });
         }
     </script>
@@ -238,11 +230,10 @@ CHANGE_PASSWORD_HTML = """
         .input-wrap { position: relative; }
         input { width: 100%; padding: 12px 44px 12px 16px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #c9d1d9; font-size: 14px; transition: border-color 0.2s; }
         input:focus { border-color: #58a6ff; outline: none; box-shadow: 0 0 0 3px rgba(88,166,255,0.1); }
-        .toggle-eye { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #484f58; font-size: 16px; user-select: none; transition: color 0.2s; }
+        .toggle-eye { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #484f58; font-size: 16px; user-select: none; }
         .toggle-eye:hover { color: #8b949e; }
         .update-btn { width: 100%; padding: 13px; background: linear-gradient(135deg, #238636, #2ea043); border: none; border-radius: 10px; color: white; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(46,160,67,0.3); margin-top: 5px; }
         .update-btn:hover { background: linear-gradient(135deg, #2ea043, #3fb950); transform: translateY(-1px); }
-        .update-btn:active { transform: translateY(0); }
         .msg { font-size: 13px; margin-top: 14px; padding: 10px; border-radius: 6px; display: none; }
         .msg.error { color: #f85149; background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.2); }
         .msg.success { color: #3fb950; background: rgba(63,185,80,0.1); border: 1px solid rgba(63,185,80,0.2); }
@@ -283,13 +274,8 @@ CHANGE_PASSWORD_HTML = """
     <script>
         function toggleEye(inputId, icon) {
             const input = document.getElementById(inputId);
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.innerText = '🙈';
-            } else {
-                input.type = 'password';
-                icon.innerText = '👁️';
-            }
+            if (input.type === 'password') { input.type = 'text'; icon.innerText = '🙈'; }
+            else { input.type = 'password'; icon.innerText = '👁️'; }
         }
         function changePass() {
             const old_pwd = document.getElementById('old_pwd').value;
@@ -298,37 +284,16 @@ CHANGE_PASSWORD_HTML = """
             const msg = document.getElementById('msg');
             const btn = document.querySelector('.update-btn');
             msg.style.display = 'none';
-            if(new_pwd !== confirm_pwd) {
-                msg.className = 'msg error';
-                msg.innerText = '❌ New passwords do not match!';
-                msg.style.display = 'block';
-                return;
-            }
-            if(new_pwd.length < 6) {
-                msg.className = 'msg error';
-                msg.innerText = '❌ Password must be at least 6 characters!';
-                msg.style.display = 'block';
-                return;
-            }
-            btn.innerText = 'Updating...';
-            btn.disabled = true;
+            if(new_pwd !== confirm_pwd) { msg.className = 'msg error'; msg.innerText = '❌ Passwords do not match!'; msg.style.display = 'block'; return; }
+            if(new_pwd.length < 6) { msg.className = 'msg error'; msg.innerText = '❌ Min 6 characters required!'; msg.style.display = 'block'; return; }
+            btn.innerText = 'Updating...'; btn.disabled = true;
             fetch('/dashboard/change-password', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({old_password: old_pwd, new_password: new_pwd})
             }).then(r => r.json()).then(d => {
-                if(d.success) {
-                    msg.className = 'msg success';
-                    msg.innerText = '✅ Password changed successfully! Logging out...';
-                    msg.style.display = 'block';
-                    setTimeout(() => window.location.href = '/dashboard/logout', 1500);
-                } else {
-                    msg.className = 'msg error';
-                    msg.innerText = '❌ ' + (d.message || 'Error occurred!');
-                    msg.style.display = 'block';
-                    btn.innerText = '🔒 Update Password';
-                    btn.disabled = false;
-                }
+                if(d.success) { msg.className = 'msg success'; msg.innerText = '✅ Password changed! Logging out...'; msg.style.display = 'block'; setTimeout(() => window.location.href = '/dashboard/logout', 1500); }
+                else { msg.className = 'msg error'; msg.innerText = '❌ ' + (d.message || 'Error!'); msg.style.display = 'block'; btn.innerText = '🔒 Update Password'; btn.disabled = false; }
             });
         }
     </script>
@@ -365,7 +330,7 @@ DASHBOARD_HTML = """
         .section { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 22px; margin-bottom: 20px; }
         .section h3 { color: #c9d1d9; margin-bottom: 15px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
         table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th { background: #21262d; color: #8b949e; padding: 10px 12px; text-align: left; border-bottom: 1px solid #30363d; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        th { background: #21262d; color: #8b949e; padding: 10px 12px; text-align: left; border-bottom: 1px solid #30363d; font-size: 12px; text-transform: uppercase; }
         td { padding: 10px 12px; border-bottom: 1px solid #21262d; }
         tr:last-child td { border-bottom: none; }
         tr:hover td { background: #21262d55; }
@@ -415,14 +380,9 @@ DASHBOARD_HTML = """
         <div class="section">
             <h3>📊 Attack Types Breakdown</h3>
             {% for atype, count in by_type %}
-            <div class="type-row">
-                <span>{{ atype }}</span>
-                <span class="count-badge">{{ count }}</span>
-            </div>
+            <div class="type-row"><span>{{ atype }}</span><span class="count-badge">{{ count }}</span></div>
             {% endfor %}
-            {% if not by_type %}
-            <div class="empty">No attacks recorded yet</div>
-            {% endif %}
+            {% if not by_type %}<div class="empty">No attacks recorded yet</div>{% endif %}
         </div>
         <div class="section">
             <h3>🌐 Top Attacker IPs</h3>
@@ -431,9 +391,7 @@ DASHBOARD_HTML = """
                 {% for ip, count in by_ip %}
                 <tr><td>{{ ip }}</td><td><span class="count-badge">{{ count }}</span></td></tr>
                 {% endfor %}
-                {% if not by_ip %}
-                <tr><td colspan="2"><div class="empty">No data yet</div></td></tr>
-                {% endif %}
+                {% if not by_ip %}<tr><td colspan="2"><div class="empty">No data yet</div></td></tr>{% endif %}
             </table>
         </div>
         <div class="section">
@@ -444,17 +402,11 @@ DASHBOARD_HTML = """
                 <tr>
                     <td>{{ timestamp }}</td>
                     <td>{{ ip }}</td>
-                    <td>
-                        <span class="badge {% if 'XSS' in atype %}xss{% elif 'SQL' in atype %}sql{% elif 'Command' in atype %}cmd{% elif 'Path' in atype %}path{% else %}other{% endif %}">
-                            {{ atype }}
-                        </span>
-                    </td>
+                    <td><span class="badge {% if 'XSS' in atype %}xss{% elif 'SQL' in atype %}sql{% elif 'Command' in atype %}cmd{% elif 'Path' in atype %}path{% else %}other{% endif %}">{{ atype }}</span></td>
                     <td style="color:#8b949e;">{{ payload[:80] }}{% if payload|length > 80 %}...{% endif %}</td>
                 </tr>
                 {% endfor %}
-                {% if not recent %}
-                <tr><td colspan="4"><div class="empty">No attacks yet</div></td></tr>
-                {% endif %}
+                {% if not recent %}<tr><td colspan="4"><div class="empty">No attacks yet</div></td></tr>{% endif %}
             </table>
         </div>
     </div>
@@ -569,6 +521,5 @@ def dashboard_logout():
 
 # --- MAIN ---
 if __name__ == '__main__':
-    init_db()
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
