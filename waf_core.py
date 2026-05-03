@@ -5,11 +5,24 @@ import threading
 import requests
 import sqlite3
 import bcrypt
+import time
+from collections import defaultdict
 from datetime import datetime
 from flask import Flask, request, abort, render_template_string, redirect, session, jsonify
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "saad-shield-secret-2026")
+
+# --- RATE LIMITING ---
+login_attempts = defaultdict(list)
+
+def is_rate_limited(ip):
+    now = time.time()
+    login_attempts[ip] = [t for t in login_attempts[ip] if now - t < 300]
+    if len(login_attempts[ip]) >= 5:
+        return True
+    login_attempts[ip].append(now)
+    return False
 
 # --- DATABASE SETUP ---
 def init_db():
@@ -34,7 +47,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# DB initialize karo app start hote hi
 init_db()
 
 def verify_password(password):
@@ -82,8 +94,13 @@ SECURITY_RULES = [
     (r"insert\s+into", "SQL Injection - Insert"),
     (r"drop\s+table", "SQL Injection - Drop"),
     (r"'.*?or.*?1\s*=\s*1", "SQL Injection - Boolean"),
+    (r"or\s*'?\d+'?\s*=\s*'?\d+", "SQL Injection - Boolean OR"),
+    (r"'\s*or\s*'", "SQL Injection - OR Quote"),
+    (r"'\s*or\s+", "SQL Injection - OR"),
     (r"'.*?--", "SQL Injection - Comment"),
+    (r"--\s*$", "SQL Injection - Comment End"),
     (r"\d+\s*=\s*\d+", "SQL Injection - Tautology"),
+    (r"'\s*=\s*'", "SQL Injection - Quote Equals"),
     (r"\.\./\.\./", "Path Traversal"),
     (r"/etc/passwd", "Path Traversal - Passwd"),
     (r";\s*cat\s+", "Command Injection"),
@@ -118,7 +135,7 @@ UI_HTML = """
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
         .desc { color: #8b949e; font-size: 14px; line-height: 1.6; margin-bottom: 28px; }
         .dash-btn { display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #1f6feb, #388bfd); color: white; padding: 13px 30px; border-radius: 10px; text-decoration: none; font-size: 15px; font-weight: 600; transition: all 0.2s; box-shadow: 0 4px 15px rgba(56,139,253,0.3); width: 100%; justify-content: center; }
-        .dash-btn:hover { background: linear-gradient(135deg, #388bfd, #58a6ff); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(56,139,253,0.4); }
+        .dash-btn:hover { background: linear-gradient(135deg, #388bfd, #58a6ff); transform: translateY(-1px); }
         .divider { border: none; border-top: 1px solid #30363d; margin: 25px 0; }
         .footer { font-size: 12px; color: #484f58; }
         .footer b { color: #58a6ff; }
@@ -166,7 +183,6 @@ LOGIN_HTML = """
         .toggle-eye:hover { color: #8b949e; }
         .login-btn { width: 100%; padding: 13px; background: linear-gradient(135deg, #1f6feb, #388bfd); border: none; border-radius: 10px; color: white; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(56,139,253,0.3); margin-top: 5px; }
         .login-btn:hover { background: linear-gradient(135deg, #388bfd, #58a6ff); transform: translateY(-1px); }
-        .login-btn:active { transform: translateY(0); }
         .error { color: #f85149; font-size: 13px; margin-top: 14px; padding: 10px; background: rgba(248,81,73,0.1); border-radius: 6px; border: 1px solid rgba(248,81,73,0.2); display: none; }
         .back-link { display: block; margin-top: 20px; color: #484f58; font-size: 13px; text-decoration: none; }
         .back-link:hover { color: #8b949e; }
@@ -185,7 +201,7 @@ LOGIN_HTML = """
             </div>
         </div>
         <button class="login-btn" onclick="login()">🔓 Login to Dashboard</button>
-        <div class="error" id="err">❌ Wrong password! Please try again.</div>
+        <div class="error" id="err"></div>
         <a href="/" class="back-link">← Back to Home</a>
     </div>
     <script>
@@ -203,8 +219,16 @@ LOGIN_HTML = """
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({password: document.getElementById('pwd').value})
             }).then(r => r.json()).then(d => {
-                if(d.success) { btn.innerText = '✅ Success! Redirecting...'; window.location.href = '/dashboard'; }
-                else { document.getElementById('err').style.display = 'block'; btn.innerText = '🔓 Login to Dashboard'; btn.disabled = false; }
+                if(d.success) {
+                    btn.innerText = '✅ Success! Redirecting...';
+                    window.location.href = '/dashboard';
+                } else {
+                    const err = document.getElementById('err');
+                    err.innerText = d.message || '❌ Wrong password!';
+                    err.style.display = 'block';
+                    btn.innerText = '🔓 Login to Dashboard';
+                    btn.disabled = false;
+                }
             });
         }
     </script>
@@ -232,7 +256,7 @@ CHANGE_PASSWORD_HTML = """
         input:focus { border-color: #58a6ff; outline: none; box-shadow: 0 0 0 3px rgba(88,166,255,0.1); }
         .toggle-eye { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #484f58; font-size: 16px; user-select: none; }
         .toggle-eye:hover { color: #8b949e; }
-        .update-btn { width: 100%; padding: 13px; background: linear-gradient(135deg, #238636, #2ea043); border: none; border-radius: 10px; color: white; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(46,160,67,0.3); margin-top: 5px; }
+        .update-btn { width: 100%; padding: 13px; background: linear-gradient(135deg, #238636, #2ea043); border: none; border-radius: 10px; color: white; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 5px; }
         .update-btn:hover { background: linear-gradient(135deg, #2ea043, #3fb950); transform: translateY(-1px); }
         .msg { font-size: 13px; margin-top: 14px; padding: 10px; border-radius: 6px; display: none; }
         .msg.error { color: #f85149; background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.2); }
@@ -292,8 +316,18 @@ CHANGE_PASSWORD_HTML = """
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({old_password: old_pwd, new_password: new_pwd})
             }).then(r => r.json()).then(d => {
-                if(d.success) { msg.className = 'msg success'; msg.innerText = '✅ Password changed! Logging out...'; msg.style.display = 'block'; setTimeout(() => window.location.href = '/dashboard/logout', 1500); }
-                else { msg.className = 'msg error'; msg.innerText = '❌ ' + (d.message || 'Error!'); msg.style.display = 'block'; btn.innerText = '🔒 Update Password'; btn.disabled = false; }
+                if(d.success) {
+                    msg.className = 'msg success';
+                    msg.innerText = '✅ Password changed! Logging out...';
+                    msg.style.display = 'block';
+                    setTimeout(() => window.location.href = '/dashboard/logout', 1500);
+                } else {
+                    msg.className = 'msg error';
+                    msg.innerText = '❌ ' + (d.message || 'Error!');
+                    msg.style.display = 'block';
+                    btn.innerText = '🔒 Update Password';
+                    btn.disabled = false;
+                }
             });
         }
     </script>
@@ -494,11 +528,14 @@ def dashboard():
 
 @app.route('/dashboard/login', methods=['POST'])
 def dashboard_login():
+    ip = request.remote_addr
+    if is_rate_limited(ip):
+        return jsonify({'success': False, 'message': '🚫 Too many attempts! Wait 5 minutes.'}), 429
     data = request.get_json()
     if data and verify_password(data.get('password', '')):
         session['logged_in'] = True
         return jsonify({'success': True})
-    return jsonify({'success': False})
+    return jsonify({'success': False, 'message': '❌ Wrong password! Please try again.'})
 
 @app.route('/dashboard/change-password', methods=['GET', 'POST'])
 def dashboard_change_password():
