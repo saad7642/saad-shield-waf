@@ -9,10 +9,20 @@ from collections import defaultdict
 from datetime import datetime
 from flask import Flask, request, abort, render_template_string, redirect, session, jsonify
 import psycopg2
-from psycopg2.extras import RealDictCursor
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "saad-shield-secret-2026")
+
+# --- RATE LIMITING ---
+login_attempts = defaultdict(list)
+
+def is_rate_limited(ip):
+    now = time.time()
+    login_attempts[ip] = [t for t in login_attempts[ip] if now - t < 300]
+    if len(login_attempts[ip]) >= 5:
+        return True
+    login_attempts[ip].append(now)
+    return False
 
 # --- DATABASE CONNECTION ---
 def get_db():
@@ -44,17 +54,6 @@ def init_db():
     conn.close()
 
 init_db()
-
-# --- RATE LIMITING ---
-login_attempts = defaultdict(list)
-
-def is_rate_limited(ip):
-    now = time.time()
-    login_attempts[ip] = [t for t in login_attempts[ip] if now - t < 300]
-    if len(login_attempts[ip]) >= 5:
-        return True
-    login_attempts[ip].append(now)
-    return False
 
 def verify_password(password):
     conn = get_db()
@@ -490,7 +489,7 @@ def send_mail_task(ip, reason, payload):
     except Exception as e:
         print(f"[-] ERROR: {type(e).__name__}: {str(e)}")
 
-# --- SECURITY HEADERS ---
+# --- SECURITY HEADERS (Updated with CSP + Cache-Control) ---
 @app.after_request
 def add_security_headers(response):
     response.headers['X-Frame-Options'] = 'DENY'
@@ -498,6 +497,9 @@ def add_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
     return response
 
 # --- WAF MIDDLEWARE ---
