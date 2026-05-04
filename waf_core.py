@@ -10,7 +10,7 @@ from datetime import datetime
 from flask import Flask, request, abort, render_template_string, redirect, session, jsonify
 import psycopg2
 
-app = Flask(__name__)
+app = Flask(_name_)
 app.secret_key = os.environ.get("SECRET_KEY", "saad-shield-secret-2026")
 
 # --- RATE LIMITING ---
@@ -91,9 +91,9 @@ def get_stats():
     total = c.fetchone()[0]
     c.execute("SELECT timestamp, ip, attack_type, payload FROM attacks ORDER BY id DESC LIMIT 50")
     recent = c.fetchall()
-    c.execute("SELECT attack_type, COUNT(*) FROM attacks GROUP BY attack_type ORDER BY COUNT(*) DESC")
+    c.execute("SELECT attack_type, COUNT() FROM attacks GROUP BY attack_type ORDER BY COUNT() DESC")
     by_type = c.fetchall()
-    c.execute("SELECT ip, COUNT(*) FROM attacks GROUP BY ip ORDER BY COUNT(*) DESC LIMIT 10")
+    c.execute("SELECT ip, COUNT() FROM attacks GROUP BY ip ORDER BY COUNT() DESC LIMIT 10")
     by_ip = c.fetchall()
     c.close()
     conn.close()
@@ -108,7 +108,7 @@ SECURITY_RULES = [
     (r"union\s+select", "SQL Injection - Union"),
     (r"insert\s+into", "SQL Injection - Insert"),
     (r"drop\s+table", "SQL Injection - Drop"),
-    (r"'.*?or.*?1\s*=\s*1", "SQL Injection - Boolean"),
+    (r"'.?or.?1\s*=\s*1", "SQL Injection - Boolean"),
     (r"or\s*'?\d+'?\s*=\s*'?\d+", "SQL Injection - Boolean OR"),
     (r"'\s*or\s*'", "SQL Injection - OR Quote"),
     (r"'\s*or\s+", "SQL Injection - OR"),
@@ -141,10 +141,10 @@ UI_HTML = """
     <title>Saad-Shield | Security Dashboard</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', sans-serif; background: radial-gradient(ellipse at top, #0d1f3c 0%, #0d1117 70%); color: #c9d1d9; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .container { background: #161b22; padding: 45px 40px; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px #30363d; text-align: center; width: 440px; }
+        body { font-family: 'Segoe UI', sans-serif; background: radial-gradient(ellipse at top, #0d1f3c 0%, #0d1117 70%); color: #c9d1d9; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .container { background: #161b22; padding: 40px 30px; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px #30363d; text-align: center; width: 100%; max-width: 440px; }
         .shield-icon { font-size: 52px; margin-bottom: 10px; filter: drop-shadow(0 0 20px #58a6ff88); }
-        h1 { color: #58a6ff; font-size: 30px; font-weight: 700; margin-bottom: 8px; }
+        h1 { color: #58a6ff; font-size: 28px; font-weight: 700; margin-bottom: 8px; }
         .status-badge { background: rgba(35,134,54,0.15); color: #3fb950; padding: 6px 16px; border-radius: 20px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #238636; margin-bottom: 20px; }
         .dot { width: 7px; height: 7px; background: #3fb950; border-radius: 50%; animation: pulse 2s infinite; }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
@@ -160,17 +160,11 @@ UI_HTML = """
     <div class="container">
         <div class="shield-icon">🛡️</div>
         <h1>Saad-Shield</h1>
-        <div class="status-badge">
-            <div class="dot"></div>
-            System Live & Protected
-        </div>
+        <div class="status-badge"><div class="dot"></div>System Live & Protected</div>
         <p class="desc">WAF is actively monitoring all traffic.<br>Security rules are being enforced in real-time.</p>
         <a href="/dashboard" class="dash-btn">📊 View Dashboard</a>
         <hr class="divider">
-        <div class="footer">
-            Developed by <b>Muhammad Saad</b><br>
-            SQA & Cyber Security Specialist
-        </div>
+        <div class="footer">Developed by <b>Muhammad Saad</b><br>SQA & Cyber Security Specialist</div>
     </div>
 </body>
 </html>
@@ -181,26 +175,26 @@ LOGIN_HTML = """
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Saad-Shield | Login</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', sans-serif; background: radial-gradient(ellipse at top, #0d1f3c 0%, #0d1117 70%); color: #c9d1d9; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .container { background: #161b22; padding: 45px 40px; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px #30363d; text-align: center; width: 400px; }
+        body { font-family: 'Segoe UI', sans-serif; background: radial-gradient(ellipse at top, #0d1f3c 0%, #0d1117 70%); color: #c9d1d9; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .container { background: #161b22; padding: 40px 30px; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px #30363d; text-align: center; width: 100%; max-width: 400px; }
         .lock-icon { font-size: 48px; margin-bottom: 12px; }
-        h2 { color: #58a6ff; font-size: 24px; font-weight: 700; margin-bottom: 6px; }
-        .subtitle { color: #484f58; font-size: 13px; margin-bottom: 28px; }
+        h2 { color: #58a6ff; font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+        .subtitle { color: #484f58; font-size: 13px; margin-bottom: 24px; }
         .input-group { margin-bottom: 16px; text-align: left; }
         label { font-size: 12px; color: #8b949e; display: block; margin-bottom: 6px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; }
         .input-wrap { position: relative; }
-        input { width: 100%; padding: 12px 44px 12px 16px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #c9d1d9; font-size: 14px; transition: border-color 0.2s; }
+        input { width: 100%; padding: 12px 44px 12px 16px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #c9d1d9; font-size: 16px; transition: border-color 0.2s; }
         input:focus { border-color: #58a6ff; outline: none; box-shadow: 0 0 0 3px rgba(88,166,255,0.1); }
-        .toggle-eye { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #484f58; font-size: 16px; user-select: none; transition: color 0.2s; }
+        .toggle-eye { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #484f58; font-size: 18px; user-select: none; }
         .toggle-eye:hover { color: #8b949e; }
-        .login-btn { width: 100%; padding: 13px; background: linear-gradient(135deg, #1f6feb, #388bfd); border: none; border-radius: 10px; color: white; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(56,139,253,0.3); margin-top: 5px; }
-        .login-btn:hover { background: linear-gradient(135deg, #388bfd, #58a6ff); transform: translateY(-1px); }
+        .login-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, #1f6feb, #388bfd); border: none; border-radius: 10px; color: white; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 5px; }
+        .login-btn:hover { background: linear-gradient(135deg, #388bfd, #58a6ff); }
         .error { color: #f85149; font-size: 13px; margin-top: 14px; padding: 10px; background: rgba(248,81,73,0.1); border-radius: 6px; border: 1px solid rgba(248,81,73,0.2); display: none; }
         .back-link { display: block; margin-top: 20px; color: #484f58; font-size: 13px; text-decoration: none; }
-        .back-link:hover { color: #8b949e; }
     </style>
 </head>
 <body>
@@ -234,16 +228,8 @@ LOGIN_HTML = """
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({password: document.getElementById('pwd').value})
             }).then(r => r.json()).then(d => {
-                if(d.success) {
-                    btn.innerText = '✅ Success! Redirecting...';
-                    window.location.href = '/dashboard';
-                } else {
-                    const err = document.getElementById('err');
-                    err.innerText = d.message || '❌ Wrong password!';
-                    err.style.display = 'block';
-                    btn.innerText = '🔓 Login to Dashboard';
-                    btn.disabled = false;
-                }
+                if(d.success) { btn.innerText = '✅ Redirecting...'; window.location.href = '/dashboard'; }
+                else { const err = document.getElementById('err'); err.innerText = d.message || '❌ Wrong password!'; err.style.display = 'block'; btn.innerText = '🔓 Login to Dashboard'; btn.disabled = false; }
             });
         }
     </script>
@@ -256,28 +242,27 @@ CHANGE_PASSWORD_HTML = """
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Saad-Shield | Change Password</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', sans-serif; background: radial-gradient(ellipse at top, #0d1f3c 0%, #0d1117 70%); color: #c9d1d9; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .container { background: #161b22; padding: 45px 40px; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px #30363d; text-align: center; width: 400px; }
+        body { font-family: 'Segoe UI', sans-serif; background: radial-gradient(ellipse at top, #0d1f3c 0%, #0d1117 70%); color: #c9d1d9; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .container { background: #161b22; padding: 40px 30px; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px #30363d; text-align: center; width: 100%; max-width: 400px; }
         .key-icon { font-size: 48px; margin-bottom: 12px; }
-        h2 { color: #58a6ff; font-size: 24px; font-weight: 700; margin-bottom: 6px; }
-        .subtitle { color: #484f58; font-size: 13px; margin-bottom: 28px; }
+        h2 { color: #58a6ff; font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+        .subtitle { color: #484f58; font-size: 13px; margin-bottom: 24px; }
         .input-group { margin-bottom: 16px; text-align: left; }
         label { font-size: 12px; color: #8b949e; display: block; margin-bottom: 6px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; }
         .input-wrap { position: relative; }
-        input { width: 100%; padding: 12px 44px 12px 16px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #c9d1d9; font-size: 14px; transition: border-color 0.2s; }
+        input { width: 100%; padding: 12px 44px 12px 16px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #c9d1d9; font-size: 16px; transition: border-color 0.2s; }
         input:focus { border-color: #58a6ff; outline: none; box-shadow: 0 0 0 3px rgba(88,166,255,0.1); }
-        .toggle-eye { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #484f58; font-size: 16px; user-select: none; }
-        .toggle-eye:hover { color: #8b949e; }
-        .update-btn { width: 100%; padding: 13px; background: linear-gradient(135deg, #238636, #2ea043); border: none; border-radius: 10px; color: white; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 5px; }
-        .update-btn:hover { background: linear-gradient(135deg, #2ea043, #3fb950); transform: translateY(-1px); }
+        .toggle-eye { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #484f58; font-size: 18px; user-select: none; }
+        .update-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, #238636, #2ea043); border: none; border-radius: 10px; color: white; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 5px; }
+        .update-btn:hover { background: linear-gradient(135deg, #2ea043, #3fb950); }
         .msg { font-size: 13px; margin-top: 14px; padding: 10px; border-radius: 6px; display: none; }
         .msg.error { color: #f85149; background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.2); }
         .msg.success { color: #3fb950; background: rgba(63,185,80,0.1); border: 1px solid rgba(63,185,80,0.2); }
         .back-link { display: block; margin-top: 20px; color: #484f58; font-size: 13px; text-decoration: none; }
-        .back-link:hover { color: #8b949e; }
     </style>
 </head>
 <body>
@@ -324,25 +309,15 @@ CHANGE_PASSWORD_HTML = """
             const btn = document.querySelector('.update-btn');
             msg.style.display = 'none';
             if(new_pwd !== confirm_pwd) { msg.className = 'msg error'; msg.innerText = '❌ Passwords do not match!'; msg.style.display = 'block'; return; }
-            if(new_pwd.length < 6) { msg.className = 'msg error'; msg.innerText = '❌ Min 6 characters required!'; msg.style.display = 'block'; return; }
+            if(new_pwd.length < 6) { msg.className = 'msg error'; msg.innerText = '❌ Min 6 characters!'; msg.style.display = 'block'; return; }
             btn.innerText = 'Updating...'; btn.disabled = true;
             fetch('/dashboard/change-password', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({old_password: old_pwd, new_password: new_pwd})
             }).then(r => r.json()).then(d => {
-                if(d.success) {
-                    msg.className = 'msg success';
-                    msg.innerText = '✅ Password changed! Logging out...';
-                    msg.style.display = 'block';
-                    setTimeout(() => window.location.href = '/dashboard/logout', 1500);
-                } else {
-                    msg.className = 'msg error';
-                    msg.innerText = '❌ ' + (d.message || 'Error!');
-                    msg.style.display = 'block';
-                    btn.innerText = '🔒 Update Password';
-                    btn.disabled = false;
-                }
+                if(d.success) { msg.className = 'msg success'; msg.innerText = '✅ Password changed! Logging out...'; msg.style.display = 'block'; setTimeout(() => window.location.href = '/dashboard/logout', 1500); }
+                else { msg.className = 'msg error'; msg.innerText = '❌ ' + (d.message || 'Error!'); msg.style.display = 'block'; btn.innerText = '🔒 Update Password'; btn.disabled = false; }
             });
         }
     </script>
@@ -360,50 +335,58 @@ DASHBOARD_HTML = """
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; }
-        .navbar { background: #161b22; padding: 15px 30px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; }
-        .navbar h1 { color: #58a6ff; font-size: 20px; }
-        .nav-links { display: flex; align-items: center; gap: 8px; }
-        .live-badge { background: rgba(63,185,80,0.15); color: #3fb950; padding: 5px 12px; border-radius: 20px; font-size: 12px; border: 1px solid #238636; display: flex; align-items: center; gap: 5px; }
-        .dot { width: 6px; height: 6px; background: #3fb950; border-radius: 50%; animation: pulse 2s infinite; }
+
+        /* NAVBAR */
+        .navbar { background: #161b22; padding: 12px 20px; border-bottom: 1px solid #30363d; }
+        .navbar-top { display: flex; justify-content: space-between; align-items: center; }
+        .navbar h1 { color: #58a6ff; font-size: 17px; font-weight: 700; }
+        .nav-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+        .live-badge { background: rgba(63,185,80,0.15); color: #3fb950; padding: 5px 10px; border-radius: 20px; font-size: 12px; border: 1px solid #238636; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+        .dot { width: 6px; height: 6px; background: #3fb950; border-radius: 50%; animation: pulse 2s infinite; flex-shrink: 0; }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        .nav-btn { padding: 7px 14px; border-radius: 8px; font-size: 13px; text-decoration: none; font-weight: 500; transition: all 0.2s; }
-        .nav-btn.change-pwd { background: rgba(88,166,255,0.1); color: #58a6ff; border: 1px solid rgba(88,166,255,0.3); }
-        .nav-btn.change-pwd:hover { background: rgba(88,166,255,0.2); }
-        .nav-btn.logout { background: rgba(248,81,73,0.1); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
-        .nav-btn.logout:hover { background: rgba(248,81,73,0.2); }
-        .content { padding: 25px 30px; }
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px; }
-        .stat-card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 22px; text-align: center; }
-        .stat-card .number { font-size: 38px; font-weight: 700; }
-        .stat-card .label { font-size: 12px; color: #8b949e; margin-top: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .section { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 22px; margin-bottom: 20px; }
-        .section h3 { color: #c9d1d9; margin-bottom: 15px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th { background: #21262d; color: #8b949e; padding: 10px 12px; text-align: left; border-bottom: 1px solid #30363d; font-size: 12px; text-transform: uppercase; }
-        td { padding: 10px 12px; border-bottom: 1px solid #21262d; }
+        .nav-btn { padding: 8px 14px; border-radius: 8px; font-size: 13px; text-decoration: none; font-weight: 600; transition: all 0.2s; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+        .nav-btn.change-pwd { background: rgba(88,166,255,0.15); color: #58a6ff; border: 1px solid rgba(88,166,255,0.4); }
+        .nav-btn.change-pwd:hover { background: rgba(88,166,255,0.25); }
+        .nav-btn.logout { background: rgba(248,81,73,0.15); color: #f85149; border: 1px solid rgba(248,81,73,0.4); }
+        .nav-btn.logout:hover { background: rgba(248,81,73,0.25); }
+
+        /* CONTENT */
+        .content { padding: 20px 15px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+        @media (min-width: 600px) { .stats-grid { grid-template-columns: repeat(4, 1fr); } }
+        .stat-card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 18px 12px; text-align: center; }
+        .stat-card .number { font-size: 32px; font-weight: 700; }
+        .stat-card .label { font-size: 11px; color: #8b949e; margin-top: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .section { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 18px 15px; margin-bottom: 16px; overflow-x: auto; }
+        .section h3 { color: #c9d1d9; margin-bottom: 12px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 400px; }
+        th { background: #21262d; color: #8b949e; padding: 9px 10px; text-align: left; border-bottom: 1px solid #30363d; font-size: 11px; text-transform: uppercase; }
+        td { padding: 9px 10px; border-bottom: 1px solid #21262d; word-break: break-all; }
         tr:last-child td { border-bottom: none; }
         tr:hover td { background: #21262d55; }
-        .badge { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .badge { padding: 3px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; white-space: nowrap; }
         .xss { background: rgba(248,81,73,0.15); color: #f85149; }
         .sql { background: rgba(255,166,0,0.15); color: #ffa600; }
         .cmd { background: rgba(88,166,255,0.15); color: #58a6ff; }
         .path { background: rgba(63,185,80,0.15); color: #3fb950; }
         .other { background: rgba(139,148,158,0.15); color: #8b949e; }
-        .type-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #21262d; font-size: 13px; }
+        .type-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid #21262d; font-size: 13px; }
         .type-row:last-child { border-bottom: none; }
         .count-badge { background: rgba(88,166,255,0.1); color: #58a6ff; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-        .refresh { font-size: 12px; color: #484f58; text-align: right; margin-bottom: 15px; }
+        .refresh { font-size: 11px; color: #484f58; text-align: right; margin-bottom: 12px; }
         .empty { color: #484f58; text-align: center; padding: 20px; font-size: 13px; }
     </style>
     <meta http-equiv="refresh" content="30">
 </head>
 <body>
     <div class="navbar">
-        <h1>🛡️ Saad-Shield Dashboard</h1>
-        <div class="nav-links">
-            <div class="live-badge"><div class="dot"></div> Live</div>
-            <a href="/dashboard/change-password" class="nav-btn change-pwd">🔑 Change Password</a>
-            <a href="/dashboard/logout" class="nav-btn logout">⏻ Logout</a>
+        <div class="navbar-top">
+            <h1>🛡️ Saad-Shield</h1>
+            <div class="nav-actions">
+                <div class="live-badge"><div class="dot"></div>Live</div>
+                <a href="/dashboard/change-password" class="nav-btn change-pwd">🔑 Change Password</a>
+                <a href="/dashboard/logout" class="nav-btn logout">⏻ Logout</a>
+            </div>
         </div>
     </div>
     <div class="content">
@@ -411,7 +394,7 @@ DASHBOARD_HTML = """
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="number" style="color:#58a6ff;">{{ total }}</div>
-                <div class="label">Total Attacks Blocked</div>
+                <div class="label">Total Blocked</div>
             </div>
             <div class="stat-card">
                 <div class="number" style="color:#f85149;">{{ xss_count }}</div>
@@ -452,7 +435,7 @@ DASHBOARD_HTML = """
                     <td>{{ timestamp }}</td>
                     <td>{{ ip }}</td>
                     <td><span class="badge {% if 'XSS' in atype %}xss{% elif 'SQL' in atype %}sql{% elif 'Command' in atype %}cmd{% elif 'Path' in atype %}path{% else %}other{% endif %}">{{ atype }}</span></td>
-                    <td style="color:#8b949e;">{{ payload[:80] }}{% if payload|length > 80 %}...{% endif %}</td>
+                    <td style="color:#8b949e;">{{ payload[:60] }}{% if payload|length > 60 %}...{% endif %}</td>
                 </tr>
                 {% endfor %}
                 {% if not recent %}<tr><td colspan="4"><div class="empty">No attacks yet</div></td></tr>{% endif %}
@@ -487,9 +470,9 @@ def send_mail_task(ip, reason, payload):
         else:
             print(f"[-] FAILED: {response.status_code} - {response.text}")
     except Exception as e:
-        print(f"[-] ERROR: {type(e).__name__}: {str(e)}")
+        print(f"[-] ERROR: {type(e)._name_}: {str(e)}")
 
-# --- SECURITY HEADERS (Updated with CSP + Cache-Control) ---
+# --- SECURITY HEADERS ---
 @app.after_request
 def add_security_headers(response):
     response.headers['X-Frame-Options'] = 'DENY'
@@ -575,6 +558,6 @@ def dashboard_logout():
     return redirect('/')
 
 # --- MAIN ---
-if __name__ == '__main__':
+if _name_ == '_main_':
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
