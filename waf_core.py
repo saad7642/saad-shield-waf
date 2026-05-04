@@ -10,7 +10,7 @@ from datetime import datetime
 from flask import Flask, request, abort, render_template_string, redirect, session, jsonify
 import psycopg2
 
-app = Flask(_name_)
+app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "saad-shield-secret-2026")
 
 # --- RATE LIMITING ---
@@ -91,9 +91,9 @@ def get_stats():
     total = c.fetchone()[0]
     c.execute("SELECT timestamp, ip, attack_type, payload FROM attacks ORDER BY id DESC LIMIT 50")
     recent = c.fetchall()
-    c.execute("SELECT attack_type, COUNT() FROM attacks GROUP BY attack_type ORDER BY COUNT() DESC")
+    c.execute("SELECT attack_type, COUNT(*) FROM attacks GROUP BY attack_type ORDER BY COUNT(*) DESC")
     by_type = c.fetchall()
-    c.execute("SELECT ip, COUNT() FROM attacks GROUP BY ip ORDER BY COUNT() DESC LIMIT 10")
+    c.execute("SELECT ip, COUNT(*) FROM attacks GROUP BY ip ORDER BY COUNT(*) DESC LIMIT 10")
     by_ip = c.fetchall()
     c.close()
     conn.close()
@@ -108,7 +108,7 @@ SECURITY_RULES = [
     (r"union\s+select", "SQL Injection - Union"),
     (r"insert\s+into", "SQL Injection - Insert"),
     (r"drop\s+table", "SQL Injection - Drop"),
-    (r"'.?or.?1\s*=\s*1", "SQL Injection - Boolean"),
+    (r"'.*?or.*?1\s*=\s*1", "SQL Injection - Boolean"),
     (r"or\s*'?\d+'?\s*=\s*'?\d+", "SQL Injection - Boolean OR"),
     (r"'\s*or\s*'", "SQL Injection - OR Quote"),
     (r"'\s*or\s+", "SQL Injection - OR"),
@@ -470,7 +470,7 @@ def send_mail_task(ip, reason, payload):
         else:
             print(f"[-] FAILED: {response.status_code} - {response.text}")
     except Exception as e:
-        print(f"[-] ERROR: {type(e)._name_}: {str(e)}")
+        print(f"[-] ERROR: {type(e).__name__}: {str(e)}")
 
 # --- SECURITY HEADERS ---
 @app.after_request
@@ -558,6 +558,6 @@ def dashboard_logout():
     return redirect('/')
 
 # --- MAIN ---
-if _name_ == '_main_':
+if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
